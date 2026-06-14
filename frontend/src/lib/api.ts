@@ -38,8 +38,16 @@ export const ordersApi = {
 // ── Churn ────────────────────────────────────────────────────
 export const churnApi = {
   summary: () => api.get("/api/churn/summary"),
-  customers: (page = 1, risk?: string) =>
-    api.get("/api/churn/customers", { params: { page, risk } }),
+  customers: (page = 1, risk?: string) => {
+    const params = new URLSearchParams({ page: page.toString() });
+    if (risk) params.append("risk", risk);
+    return api.get(`/api/churn/customers?${params.toString()}`);
+  },
+};
+
+export const demoApi = {
+  load: (force?: boolean) => api.post("/api/demo/load", { force }),
+  clear: () => api.post("/api/demo/clear"),
 };
 
 // ── Segmentation ─────────────────────────────────────────────

@@ -16,6 +16,7 @@ import campaignRoutes from "./routes/campaignRoutes";
 import analyticsRoutes from "./routes/analyticsRoutes";
 import receiptRoutes from "./routes/receiptRoutes";
 import adminRoutes from "./routes/adminRoutes";
+import demoRoutes from "./routes/demoRoutes";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -66,6 +67,7 @@ app.use("/api/campaigns", campaignRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/receipt", receiptRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/demo", demoRoutes);
 
 // 404 handler
 app.use((req, res) => {

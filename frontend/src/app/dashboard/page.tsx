@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { customersApi, ordersApi, churnApi, analyticsApi } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { customersApi, ordersApi, churnApi, analyticsApi, demoApi } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import {
   Users,
@@ -26,33 +27,59 @@ export default function DashboardPage() {
     analytics: null as any,
   });
   const [loading, setLoading] = useState(true);
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [showDemoModal, setShowDemoModal] = useState(false);
+  const [demoResult, setDemoResult] = useState<any>(null);
+
+  async function loadStats() {
+    setLoading(true);
+    try {
+      const [customersRes, ordersRes, churnRes, analyticsRes] =
+        await Promise.all([
+          customersApi.stats(),
+          ordersApi.stats(),
+          churnApi.summary(),
+          analyticsApi.overview(),
+        ]);
+
+      setStats({
+        customers: customersRes.data.total,
+        orders: ordersRes.data.total,
+        totalRevenue: ordersRes.data.totalRevenue,
+        churnRisk: churnRes.data,
+        analytics: analyticsRes.data,
+      });
+    } catch (err) {
+      console.error("Failed to load dashboard:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function loadStats() {
-      try {
-        const [customersRes, ordersRes, churnRes, analyticsRes] =
-          await Promise.all([
-            customersApi.stats(),
-            ordersApi.stats(),
-            churnApi.summary(),
-            analyticsApi.overview(),
-          ]);
-
-        setStats({
-          customers: customersRes.data.total,
-          orders: ordersRes.data.total,
-          totalRevenue: ordersRes.data.totalRevenue,
-          churnRisk: churnRes.data,
-          analytics: analyticsRes.data,
-        });
-      } catch (err) {
-        console.error("Failed to load dashboard:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
     loadStats();
   }, []);
+
+  async function handleLoadDemo(force: boolean = false) {
+    if (!force && (stats.customers > 0 || stats.orders > 0)) {
+      setShowDemoModal(true);
+      return;
+    }
+    
+    setShowDemoModal(false);
+    setDemoLoading(true);
+    setDemoResult(null);
+    try {
+      const res = await demoApi.load(force);
+      setDemoResult(res.data);
+      await loadStats();
+    } catch (error) {
+      console.error(error);
+      alert("Failed to load demo data.");
+    } finally {
+      setDemoLoading(false);
+    }
+  }
 
   const statCards = [
     {
@@ -93,22 +120,106 @@ export default function DashboardPage() {
     <div className="p-8">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-            <Coffee className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+              <Coffee className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">
+                Welcome to GrowthMind AI
+              </h1>
+              <p className="text-muted-foreground text-sm">
+                Your AI-powered growth agent for Brew & Grow
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">
-              Welcome to GrowthMind AI
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              Your AI-powered growth agent for Brew & Grow
-            </p>
-          </div>
+          {!loading && (stats.customers > 0 || stats.orders > 0) && (
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={async () => {
+                  if (confirm("Are you sure you want to clear ALL data? This will reset the platform.")) {
+                    setDemoLoading(true);
+                    try {
+                      await demoApi.clear();
+                      await loadStats();
+                    } catch (error) {
+                      console.error(error);
+                      alert("Failed to clear data.");
+                    } finally {
+                      setDemoLoading(false);
+                    }
+                  }
+                }}
+                disabled={demoLoading}
+              >
+                Clear All Data
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={() => handleLoadDemo(true)}
+                disabled={demoLoading}
+              >
+                Reload Demo Data
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Stats Grid */}
+      {demoResult && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <h3 className="font-bold text-green-900 mb-2">Demo Dataset Loaded Successfully</h3>
+          <div className="text-sm text-green-800 space-y-1">
+            <p>Customers: {demoResult.customers}</p>
+            <p>Orders: {demoResult.orders}</p>
+            <p>Profiles: {demoResult.profiles}</p>
+            <p className="mt-2 font-medium">Ready for AI segmentation and campaigns.</p>
+          </div>
+        </div>
+      )}
+
+      {showDemoModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
+            <h3 className="text-xl font-bold mb-2">Replace Existing Data?</h3>
+            <p className="text-muted-foreground mb-6">
+              Loading the demo dataset will replace the current demo/sample data and regenerate customer profiles. Continue?
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowDemoModal(false)}>Cancel</Button>
+              <Button onClick={() => handleLoadDemo(true)} disabled={demoLoading}>
+                {demoLoading ? "Loading..." : "Load Demo Dataset"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!loading && stats.customers === 0 && stats.orders === 0 ? (
+        <Card className="mb-8 bg-blue-50/50 border-blue-100">
+          <CardContent className="p-12 text-center">
+            <Zap className="w-12 h-12 text-blue-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Get started with GrowthMind AI</h2>
+            <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+              Get started by uploading your own data or loading a demo dataset to explore the platform's AI capabilities.
+            </p>
+            <div className="flex items-center justify-center gap-4">
+              <Link href="/customers">
+                <Button variant="outline" size="lg">Upload CSV</Button>
+              </Link>
+              <Button size="lg" onClick={() => handleLoadDemo(false)} disabled={demoLoading}>
+                {demoLoading ? "Generating demo customers, orders, profiles, and analytics..." : "Load Demo Dataset"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {statCards.map((card) => {
           const Icon = card.icon;
@@ -257,6 +368,8 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+        </>
+      )}
     </div>
   );
 }
