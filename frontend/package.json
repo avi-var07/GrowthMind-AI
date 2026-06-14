@@ -25,9 +25,9 @@
     "clsx": "^2.1.1",
     "growthminds-ai": "file:..",
     "lucide-react": "^0.395.0",
-    "next": "15.0.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "next": "^16.2.9",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "recharts": "^2.12.7",
     "tailwind-merge": "^2.3.0",
     "tailwindcss-animate": "^1.0.7"
