@@ -46,6 +46,7 @@ const CommunicationSchema = new Schema<ICommunication>(
 // Index for fast campaign status lookups
 CommunicationSchema.index({ campaignId: 1, status: 1 });
 CommunicationSchema.index({ customerId: 1 });
+CommunicationSchema.index({ status: 1 });
 
 export default mongoose.model<ICommunication>(
   "Communication",

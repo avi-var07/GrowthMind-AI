@@ -45,4 +45,6 @@ const CampaignSchema = new Schema<ICampaign>(
   { timestamps: false }
 );
 
+CampaignSchema.index({ createdAt: -1 });
+
 export default mongoose.model<ICampaign>("Campaign", CampaignSchema);

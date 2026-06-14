@@ -188,8 +188,6 @@ export async function sendCampaign(req: Request, res: Response) {
     const savedComms = await Communication.insertMany(communications);
 
     // Send each communication via Channel Service asynchronously
-    const callbackUrl = `${process.env.BACKEND_URL || "http://localhost:5000"}/api/receipt`;
-
     // Fire and forget - don't wait for all sends
     savedComms.forEach((comm) => {
       sendToChannelService({
@@ -198,7 +196,6 @@ export async function sendCampaign(req: Request, res: Response) {
         customerId: comm.customerId.toString(),
         channel: comm.channel as "whatsapp" | "email",
         message: comm.message,
-        callbackUrl,
       }).catch((err) => {
         console.error(`Failed to send comm ${comm._id}:`, err);
       });

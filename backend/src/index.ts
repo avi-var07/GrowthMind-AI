@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { connectDatabase } from "./config/database";
 import { startReconciliationJob } from "./jobs/reconciliationJob";
+import mongoose from "mongoose";
 
 // Load environment variables
 dotenv.config();
@@ -22,9 +23,20 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  "http://localhost:3000"
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
@@ -37,7 +49,11 @@ import axios from "axios";
 // Check Channel Service
 let channelServiceStatus = "unknown";
 async function checkChannelService() {
-  const url = process.env.CHANNEL_SERVICE_URL || "http://localhost:6000";
+  const url = process.env.CHANNEL_SERVICE_URL;
+  if (!url) {
+    channelServiceStatus = "offline";
+    return;
+  }
   try {
     await axios.get(`${url}/health`, { timeout: 2000 });
     channelServiceStatus = "online";
@@ -52,8 +68,7 @@ app.get("/health", async (req, res) => {
   await checkChannelService();
   res.json({
     status: "ok",
-    service: "GrowthMind AI Backend",
-    port: PORT,
+    mongodb: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
     channelService: channelServiceStatus
   });
 });
@@ -80,10 +95,12 @@ async function start() {
   await checkChannelService();
   
   app.listen(PORT, () => {
-    console.log(`🚀 GrowthMind AI Backend running on port ${PORT}`);
-    console.log(`   Health: http://localhost:${PORT}/health`);
-    if (channelServiceStatus === "offline") {
-      console.log(`⚠️  WARNING: Channel Service is OFFLINE. Run 'npm run dev' in channel-service.`);
+    console.log(`✅ Mongo Connected`);
+    console.log(`✅ Backend Running`);
+    if (channelServiceStatus === "online") {
+      console.log(`✅ Channel Service Reachable`);
+    } else {
+      console.log(`⚠️ Channel Service Offline`);
     }
   });
 

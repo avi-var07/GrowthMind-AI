@@ -44,6 +44,9 @@ const CustomerProfileSchema = new Schema<ICustomerProfile>(
   { timestamps: false }
 );
 
+CustomerProfileSchema.index({ churnRisk: 1 });
+CustomerProfileSchema.index({ favoriteCategory: 1 });
+
 export default mongoose.model<ICustomerProfile>(
   "CustomerProfile",
   CustomerProfileSchema

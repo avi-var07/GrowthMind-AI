@@ -1,7 +1,6 @@
 import axios from "axios";
 
-const CHANNEL_SERVICE_URL =
-  process.env.CHANNEL_SERVICE_URL || "http://localhost:6000";
+const CHANNEL_SERVICE_URL = process.env.CHANNEL_SERVICE_URL;
 
 export async function checkChannelServiceHealth(): Promise<boolean> {
   try {
@@ -20,7 +19,6 @@ export async function sendToChannelService(payload: {
   customerId: string;
   channel: "whatsapp" | "email";
   message: string;
-  callbackUrl: string;
 }): Promise<void> {
   try {
     console.log(`[CRM Send API] Dispatching comm ${payload.communicationId} to Channel Service`);

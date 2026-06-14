@@ -37,14 +37,12 @@ export function startReconciliationJob() {
         } else {
           // Retry sending once
           try {
-            const callbackUrl = `${process.env.BACKEND_URL || "http://localhost:5000"}/api/receipt`;
             await sendToChannelService({
               communicationId: comm._id.toString(),
               campaignId: comm.campaignId.toString(),
               customerId: comm.customerId.toString(),
               channel: comm.channel,
               message: comm.message,
-              callbackUrl,
             });
 
             // Increment retry count

@@ -13,22 +13,20 @@ app.use(express.json());
 
 // Health check
 app.get("/health", (req, res) => {
-  res.json({
-    status: "ok",
-    service: "GrowthMind Channel Service (Stub)",
-    port: PORT,
-  });
+  res.json({ status: "ok" });
 });
 
 // POST /send - Stubbed message sending endpoint
 // Simulates WhatsApp/Email delivery with realistic probabilities
 app.post("/send", async (req, res) => {
-  const { communicationId, campaignId, customerId, channel, message, callbackUrl } =
+  const { communicationId, campaignId, customerId, channel, message } =
     req.body;
+  
+  const callbackUrl = process.env.CRM_CALLBACK_URL;
 
   if (!campaignId || !customerId || !callbackUrl) {
-    console.error(`[Channel] Rejecting send request: missing fields.`);
-    return res.status(400).json({ error: "Missing required fields" });
+    console.error(`[Channel] Rejecting send request: missing fields or callbackUrl.`);
+    return res.status(400).json({ error: "Missing required fields or CRM_CALLBACK_URL" });
   }
 
   // Immediately acknowledge receipt

@@ -74,8 +74,7 @@ async function callAI(
           headers: {
             Authorization: `Bearer ${OPENROUTER_API_KEY}`,
             "Content-Type": "application/json",
-            "HTTP-Referer":
-              process.env.FRONTEND_URL || "http://localhost:3000",
+            "HTTP-Referer": process.env.FRONTEND_URL || "",
             "X-Title": "GrowthMind AI CRM",
           },
           timeout: model.timeout,
@@ -87,11 +86,6 @@ async function callAI(
         sessionTokenUsage.promptTokens += usage.prompt_tokens || 0;
         sessionTokenUsage.completionTokens += usage.completion_tokens || 0;
         sessionTokenUsage.totalTokens += usage.total_tokens || 0;
-        console.log(
-          `[AI] Tokens used — prompt: ${usage.prompt_tokens || 0}, ` +
-            `completion: ${usage.completion_tokens || 0}, ` +
-            `session total: ${sessionTokenUsage.totalTokens}`
-        );
       }
 
       const content = response.data?.choices?.[0]?.message?.content;
@@ -281,11 +275,6 @@ function localParseSegmentPrompt(prompt: string): {
   const explanation =
     reasons.join("\n") +
     "\n• Identified using local keyword matching (AI models busy — results still accurate)";
-
-  console.log(
-    `[AI] Local parser used for prompt: "${prompt}" → filters:`,
-    filters
-  );
 
   return { filters, explanation };
 }
