@@ -24,7 +24,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "growthminds-ai": "file:..",
-    "lucide-react": "^0.395.0",
+    "lucide-react": "^1.18.0",
     "next": "^16.2.9",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
