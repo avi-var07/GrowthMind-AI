@@ -3,7 +3,7 @@ import axios from "axios";
 // All API calls go through this client
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
-  timeout: 30000,
+  timeout: 1200000,
   headers: { "Content-Type": "application/json" },
 });
 
