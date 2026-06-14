@@ -49,9 +49,25 @@ export async function uploadCustomers(req: Request, res: Response) {
 
     let created = 0;
     let skipped = 0;
+    const failures: { row: number; reason: string }[] = [];
 
+    // Track rows (1-indexed based on data rows)
+    let rowIndex = 1;
     for (const record of records) {
       try {
+        if (!record.email) {
+          throw new Error("Missing Email");
+        }
+        if (!record.name) {
+          throw new Error("Missing Name");
+        }
+        if (!record.phone) {
+          throw new Error("Missing Phone");
+        }
+        if (!record.city) {
+          throw new Error("Missing City");
+        }
+
         await Customer.create({
           name: record.name,
           email: record.email.toLowerCase(),
@@ -61,16 +77,24 @@ export async function uploadCustomers(req: Request, res: Response) {
         });
         created++;
       } catch (err: any) {
-        // Skip duplicates (unique email constraint)
-        if (err.code === 11000) skipped++;
-        else throw err;
+        skipped++;
+        // Catch MongoDB Duplicate Key Error for emails
+        if (err.code === 11000) {
+          failures.push({ row: rowIndex, reason: "Duplicate Email" });
+        } else {
+          failures.push({ row: rowIndex, reason: err.message || "Invalid Data" });
+        }
       }
+      rowIndex++;
     }
 
     // Rebuild profiles after data upload
-    buildAllProfiles().catch(console.error);
+    const rebuiltCount = await buildAllProfiles().catch(err => {
+      console.error("Profile rebuild error:", err);
+      return 0;
+    });
 
-    res.json({ message: "Upload complete", created, skipped });
+    res.json({ message: "Upload complete", created, skipped, rebuiltCount, failures });
   } catch (error) {
     console.error("CSV upload error:", error);
     res.status(500).json({ error: "Failed to process CSV" });

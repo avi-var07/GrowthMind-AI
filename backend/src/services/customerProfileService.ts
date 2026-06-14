@@ -4,7 +4,7 @@ import CustomerProfile from "../models/CustomerProfile";
 
 // Rebuild all customer profiles from scratch
 // Called after new data is uploaded or on demand
-export async function buildAllProfiles(): Promise<void> {
+export async function buildAllProfiles(): Promise<number> {
   const customers = await Customer.find({});
   console.log(`Building profiles for ${customers.length} customers...`);
 
@@ -20,6 +20,7 @@ export async function buildAllProfiles(): Promise<void> {
   console.log(`Cleaned up ${cleanupResult.deletedCount} orphaned profiles.`);
 
   console.log("All profiles built.");
+  return customers.length;
 }
 
 // Build or update a single customer's profile

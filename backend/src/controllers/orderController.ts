@@ -27,7 +27,7 @@ export async function getOrders(req: Request, res: Response) {
 }
 
 // POST /api/orders/upload - upload CSV of orders
-// CSV columns: customerId OR customerEmail, amount, category, orderDate
+// CSV columns: customerEmail, amount, category, orderDate
 export async function uploadOrders(req: Request, res: Response) {
   try {
     if (!req.file) {
@@ -43,38 +43,59 @@ export async function uploadOrders(req: Request, res: Response) {
 
     let created = 0;
     let skipped = 0;
+    const failures: { row: number; reason: string }[] = [];
+    const validCategories = ["Cold Brew", "Latte", "Espresso", "Cappuccino", "Premium Beans"];
 
+    let rowIndex = 1;
     for (const record of records) {
       try {
-        // Support lookup by email if customerId not provided
-        let customerId = record.customerId;
-        if (!customerId && record.customerEmail) {
-          const customer = await Customer.findOne({
-            email: record.customerEmail.toLowerCase(),
-          });
-          if (!customer) {
-            skipped++;
-            continue;
-          }
-          customerId = customer._id;
+        if (!record.customerEmail) {
+          throw new Error("Missing Customer Email");
+        }
+        
+        const amount = parseFloat(record.amount);
+        if (isNaN(amount) || amount <= 0) {
+          throw new Error("Invalid Amount");
+        }
+
+        if (!validCategories.includes(record.category)) {
+          throw new Error("Invalid Category");
+        }
+
+        const parsedDate = new Date(record.orderDate);
+        if (isNaN(parsedDate.getTime())) {
+          throw new Error("Invalid Date");
+        }
+
+        const customer = await Customer.findOne({
+          email: record.customerEmail.toLowerCase(),
+        });
+        
+        if (!customer) {
+          throw new Error("Customer Not Found");
         }
 
         await Order.create({
-          customerId,
-          amount: parseFloat(record.amount),
+          customerId: customer._id,
+          amount,
           category: record.category,
-          orderDate: record.orderDate ? new Date(record.orderDate) : new Date(),
+          orderDate: parsedDate,
         });
         created++;
-      } catch (err) {
+      } catch (err: any) {
         skipped++;
+        failures.push({ row: rowIndex, reason: err.message || "Invalid Data" });
       }
+      rowIndex++;
     }
 
     // Rebuild all customer profiles after order upload
-    buildAllProfiles().catch(console.error);
+    const rebuiltCount = await buildAllProfiles().catch(err => {
+      console.error("Profile rebuild error:", err);
+      return 0;
+    });
 
-    res.json({ message: "Upload complete", created, skipped });
+    res.json({ message: "Upload complete", created, skipped, rebuiltCount, failures });
   } catch (error) {
     console.error("Order CSV upload error:", error);
     res.status(500).json({ error: "Failed to process CSV" });

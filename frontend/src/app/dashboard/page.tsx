@@ -152,7 +152,7 @@ export default function DashboardPage() {
                 { step: "2", label: "Review churn risk customers", href: "/churn", done: stats.churnRisk.total > 0 },
                 { step: "3", label: "Segment audience with AI chat", href: "/chat", done: stats.analytics?.totalCampaigns > 0 },
                 { step: "4", label: "Simulate & create campaign", href: "/campaigns", done: stats.analytics?.totalCampaigns > 0 },
-                { step: "5", label: "Track performance & revenue", href: "/insights", done: stats.analytics?.totalRevenue > 0 },
+                { step: "5", label: "Track performance & revenue", href: "/insights", done: stats.analytics?.totalCampaigns > 0 },
               ].map((item) => (
                 <Link key={item.step} href={item.href}>
                   <div className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors">

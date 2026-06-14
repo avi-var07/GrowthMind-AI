@@ -24,7 +24,13 @@ export default function OrdersPage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [uploadMsg, setUploadMsg] = useState("");
+  const [uploadResult, setUploadResult] = useState<{
+    msg: string;
+    created?: number;
+    skipped?: number;
+    rebuiltCount?: number;
+    failures?: { row: number; reason: string }[];
+  } | null>(null);
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -51,20 +57,36 @@ export default function OrdersPage() {
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
     setUploading(true);
-    setUploadMsg("");
+    setUploadResult(null);
     try {
       const res = await ordersApi.upload(file);
-      setUploadMsg(
-        `✅ Imported ${res.data.created} orders (${res.data.skipped} skipped)`
-      );
+      setUploadResult({
+        msg: "Import Complete",
+        created: res.data.created,
+        skipped: res.data.skipped,
+        rebuiltCount: res.data.rebuiltCount,
+        failures: res.data.failures,
+      });
       loadOrders();
-    } catch {
-      setUploadMsg("❌ Upload failed. Check CSV format.");
+    } catch (err) {
+      setUploadResult({ msg: "❌ Upload failed. Check CSV format or server connection." });
     } finally {
       setUploading(false);
     }
   }
+
+  const downloadTemplate = () => {
+    const csvContent = "data:text/csv;charset=utf-8,customerEmail,amount,category,orderDate\nrahul@gmail.com,450,Cold Brew,2026-05-10\npriya@gmail.com,800,Premium Beans,2026-05-20";
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "orders_template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="p-8">
@@ -77,30 +99,50 @@ export default function OrdersPage() {
             {total.toLocaleString()} orders tracked
           </p>
         </div>
-        <label className="cursor-pointer">
-          <input
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={handleUpload}
-            disabled={uploading}
-          />
-          <Button variant="outline" asChild>
-            <span>
-              <Upload className="w-4 h-4 mr-2" />
-              {uploading ? "Uploading..." : "Import CSV"}
-            </span>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={downloadTemplate}>
+            Download Template
           </Button>
-        </label>
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleUpload}
+              disabled={uploading}
+            />
+            <Button variant="default" asChild>
+              <span>
+                <Upload className="w-4 h-4 mr-2" />
+                {uploading ? "Uploading..." : "Upload Orders CSV"}
+              </span>
+            </Button>
+          </label>
+        </div>
       </div>
 
-      {uploadMsg && (
-        <div className="mb-4 p-3 bg-muted rounded-lg text-sm">{uploadMsg}</div>
+      {uploadResult && (
+        <div className={`mb-6 p-4 rounded-lg border ${uploadResult.failures && uploadResult.failures.length > 0 ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200'}`}>
+          <h3 className="font-bold mb-2">{uploadResult.msg}</h3>
+          {uploadResult.created !== undefined && (
+            <div className="text-sm space-y-1">
+              <p>Orders Imported: {uploadResult.created}</p>
+              <p>Orders Skipped: {uploadResult.skipped}</p>
+              {uploadResult.rebuiltCount !== undefined && <p>Profiles Rebuilt: {uploadResult.rebuiltCount}</p>}
+            </div>
+          )}
+          {uploadResult.failures && uploadResult.failures.length > 0 && (
+            <div className="mt-3 text-sm text-red-600">
+              <p className="font-semibold mb-1">Failure Reasons:</p>
+              <ul className="list-disc pl-5 space-y-1 max-h-32 overflow-y-auto">
+                {uploadResult.failures.map((f, i) => (
+                  <li key={i}>Row {f.row} &rarr; {f.reason}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
-
-      <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700">
-        CSV format: <code>customerId, amount, category, orderDate</code>
-      </div>
 
       {/* Stats */}
       {stats && (
@@ -142,8 +184,12 @@ export default function OrdersPage() {
                   </tr>
                 ) : orders.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="text-center p-8 text-muted-foreground">
-                      No orders yet. Import a CSV or run the seed script.
+                    <td colSpan={5} className="text-center p-12 text-muted-foreground">
+                      <div className="flex flex-col items-center gap-2">
+                        <ShoppingBag className="w-12 h-12 text-muted" />
+                        <p className="text-lg font-medium text-foreground">No orders uploaded yet.</p>
+                        <p>Upload your historical orders data to generate insights.</p>
+                      </div>
                     </td>
                   </tr>
                 ) : (

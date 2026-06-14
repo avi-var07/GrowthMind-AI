@@ -180,8 +180,12 @@ export default function ChurnPage() {
                   </tr>
                 ) : customers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center p-8 text-muted-foreground">
-                      No at-risk customers. Run seed script to populate data.
+                    <td colSpan={6} className="text-center p-12 text-muted-foreground">
+                      <div className="flex flex-col items-center gap-2">
+                        <AlertTriangle className="w-12 h-12 text-muted" />
+                        <p className="text-lg font-medium text-foreground">No at-risk customers found.</p>
+                        <p>Upload your customer and order data to detect churn risk automatically.</p>
+                      </div>
                     </td>
                   </tr>
                 ) : (
