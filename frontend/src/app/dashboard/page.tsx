@@ -73,9 +73,6 @@ export default function DashboardPage() {
       const res = await demoApi.load(force);
       setDemoResult(res.data);
       await loadStats();
-      setTimeout(() => {
-      loadStats();
-      }, 5000);
     } catch (error) {
       console.error(error);
       alert("Failed to load demo data.");

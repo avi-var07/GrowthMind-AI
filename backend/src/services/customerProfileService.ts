@@ -4,21 +4,119 @@ import CustomerProfile from "../models/CustomerProfile";
 
 // Rebuild all customer profiles from scratch
 // Called after new data is uploaded or on demand
+// Shared pure logic for generating profile metrics to ensure 100% consistency
+export function generateProfileData(customer: any, orders: any[], now: Date = new Date()) {
+  const customerId = customer._id.toString();
+
+  if (orders.length === 0) {
+    return {
+      customerId,
+      totalSpend: 0,
+      totalOrders: 0,
+      lastOrderDate: null,
+      favoriteCategory: "",
+      avgOrderValue: 0,
+      tags: ["Inactive Customer"],
+      churnRisk: "high",
+      daysSinceLastOrder: 999,
+      city: customer.city,
+      updatedAt: now,
+    };
+  }
+
+  const totalSpend = orders.reduce((sum, o) => sum + o.amount, 0);
+  const totalOrders = orders.length;
+  const avgOrderValue = totalSpend / totalOrders;
+
+  let lastOrderDate = orders[0].orderDate;
+  for (const o of orders) {
+    if (new Date(o.orderDate).getTime() > new Date(lastOrderDate).getTime()) {
+      lastOrderDate = o.orderDate;
+    }
+  }
+
+  const daysSinceLastOrder = Math.floor(
+    (now.getTime() - new Date(lastOrderDate).getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  const categoryCounts: Record<string, number> = {};
+  for (const order of orders) {
+    categoryCounts[order.category] = (categoryCounts[order.category] || 0) + 1;
+  }
+  const favoriteCategory = Object.entries(categoryCounts).sort(
+    (a, b) => b[1] - a[1]
+  )[0][0];
+
+  let churnRisk: "high" | "medium" | "low" = "low";
+  if (daysSinceLastOrder > 45) churnRisk = "high";
+  else if (daysSinceLastOrder > 30) churnRisk = "medium";
+
+  const tags: string[] = [];
+
+  if (totalSpend > 5000) tags.push("VIP Customer");
+  if (totalSpend > 3000 && totalSpend <= 5000) tags.push("High Spender");
+  if (daysSinceLastOrder > 45) tags.push("Inactive Customer");
+  if (favoriteCategory === "Premium Beans") tags.push("Coffee Enthusiast");
+  if (avgOrderValue < 200) tags.push("Discount Seeker");
+  if (totalOrders >= 10) tags.push("Loyal Customer");
+  if (favoriteCategory === "Cold Brew") tags.push("Cold Brew Fan");
+  if (totalOrders === 1) tags.push("One-Time Buyer");
+
+  if (tags.length === 0) tags.push("Regular Customer");
+
+  return {
+    customerId,
+    totalSpend,
+    totalOrders,
+    lastOrderDate,
+    favoriteCategory,
+    avgOrderValue,
+    tags,
+    churnRisk,
+    daysSinceLastOrder,
+    city: customer.city,
+    updatedAt: now,
+  };
+}
+
 export async function buildAllProfiles(): Promise<number> {
-  const customers = await Customer.find({});
+  const customers = await Customer.find({}).lean();
   console.log(`Building profiles for ${customers.length} customers...`);
 
-  const batchSize = 25;
-
-  for (let i = 0; i < customers.length; i += batchSize) {
-    const batch = customers.slice(i, i + batchSize);
-
-    await Promise.all(
-      batch.map(customer =>
-        buildProfileForCustomer(customer._id.toString())
-      )
-    );
+  const customerIds = customers.map(c => c._id);
+  
+  // Fetch all orders at once to avoid N+1 query problem
+  const allOrders = await Order.find({ customerId: { $in: customerIds } }).lean();
+  
+  const ordersByCustomer: Record<string, any[]> = {};
+  for (const order of allOrders) {
+    const cid = order.customerId.toString();
+    if (!ordersByCustomer[cid]) ordersByCustomer[cid] = [];
+    ordersByCustomer[cid].push(order);
   }
+
+  const bulkOps: any[] = [];
+  const now = new Date();
+
+  for (const customer of customers) {
+    const customerId = customer._id.toString();
+    const orders = ordersByCustomer[customerId] || [];
+
+    const profileData = generateProfileData(customer, orders, now);
+
+    bulkOps.push({
+      updateOne: {
+        filter: { customerId },
+        update: { $set: profileData },
+        upsert: true
+      }
+    });
+  }
+
+  if (bulkOps.length > 0) {
+    await CustomerProfile.bulkWrite(bulkOps);
+  }
+
   // Cleanup orphaned profiles
   const activeCustomerIds = customers.map(c => c._id.toString());
   const cleanupResult = await CustomerProfile.deleteMany({
@@ -34,97 +132,15 @@ export async function buildAllProfiles(): Promise<number> {
 export async function buildProfileForCustomer(
   customerId: string
 ): Promise<void> {
-  const customer = await Customer.findById(customerId);
-  if (!customer) return; // Customer doesn't exist
+  const customer = await Customer.findById(customerId).lean();
+  if (!customer) return;
 
-  const orders = await Order.find({ customerId });
-
-  if (orders.length === 0) {
-    // Customer has no orders — mark as high churn risk with no favorite category.
-    // BUG FIX: Do NOT store "None" as favoriteCategory — it is not a valid enum
-    // value and breaks category-based segmentation filters.
-    // Store empty string instead; the UI handles display of "—".
-    await CustomerProfile.findOneAndUpdate(
-      { customerId },
-      {
-        customerId,
-        totalSpend: 0,
-        totalOrders: 0,
-        lastOrderDate: null,
-        favoriteCategory: "",
-        avgOrderValue: 0,
-        tags: ["Inactive Customer"],
-        churnRisk: "high",
-        daysSinceLastOrder: 999,
-        city: customer.city,
-        updatedAt: new Date(),
-      },
-      { upsert: true, new: true }
-    );
-    return;
-  }
-
-  // Calculate basic metrics
-  const totalSpend = orders.reduce((sum, o) => sum + o.amount, 0);
-  const totalOrders = orders.length;
-  const avgOrderValue = totalSpend / totalOrders;
-
-  // Find the most recent order date
-  const sortedOrders = orders.sort(
-    (a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime()
-  );
-  const lastOrderDate = sortedOrders[0].orderDate;
-
-  // Days since last order
-  const now = new Date();
-  const daysSinceLastOrder = Math.floor(
-    (now.getTime() - new Date(lastOrderDate).getTime()) / (1000 * 60 * 60 * 24)
-  );
-
-  // Find favorite category (most ordered)
-  const categoryCounts: Record<string, number> = {};
-  for (const order of orders) {
-    categoryCounts[order.category] = (categoryCounts[order.category] || 0) + 1;
-  }
-  const favoriteCategory = Object.entries(categoryCounts).sort(
-    (a, b) => b[1] - a[1]
-  )[0][0];
-
-  // Churn risk based on days since last order
-  let churnRisk: "high" | "medium" | "low" = "low";
-  if (daysSinceLastOrder > 45) churnRisk = "high";
-  else if (daysSinceLastOrder > 30) churnRisk = "medium";
-
-  // Generate profile tags based on behavior
-  const tags: string[] = [];
-
-  if (totalSpend > 5000) tags.push("VIP Customer");
-  if (totalSpend > 3000 && totalSpend <= 5000) tags.push("High Spender");
-  if (daysSinceLastOrder > 45) tags.push("Inactive Customer");
-  if (favoriteCategory === "Premium Beans") tags.push("Coffee Enthusiast");
-  if (avgOrderValue < 200) tags.push("Discount Seeker");
-  if (totalOrders >= 10) tags.push("Loyal Customer");
-  if (favoriteCategory === "Cold Brew") tags.push("Cold Brew Fan");
-  if (totalOrders === 1) tags.push("One-Time Buyer");
-
-  // Default tag if none assigned
-  if (tags.length === 0) tags.push("Regular Customer");
+  const orders = await Order.find({ customerId }).lean();
+  const profileData = generateProfileData(customer, orders, new Date());
 
   await CustomerProfile.findOneAndUpdate(
     { customerId },
-    {
-      customerId,
-      totalSpend,
-      totalOrders,
-      lastOrderDate,
-      favoriteCategory,
-      avgOrderValue,
-      tags,
-      churnRisk,
-      daysSinceLastOrder,
-      city: customer.city,
-      updatedAt: new Date(),
-    },
+    profileData,
     { upsert: true, new: true }
   );
 }

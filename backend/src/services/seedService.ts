@@ -237,6 +237,7 @@ export async function seedDatabase(clearExisting: boolean = true) {
   const customers = personaList.map((_, i) => {
     const { name, email } = makeName(i);
     return {
+      _id: new mongoose.Types.ObjectId(),
       name,
       email,
       phone: generatePhone(),
@@ -245,14 +246,14 @@ export async function seedDatabase(clearExisting: boolean = true) {
     };
   });
 
-  const savedCustomers = await Customer.insertMany(customers);
+  await Customer.insertMany(customers, { lean: true, ordered: false });
   
   console.log("📦 Generating orders with persona-based distribution...");
   const allOrders: any[] = [];
   let totalOrderCount = 0;
 
-  for (let i = 0; i < savedCustomers.length; i++) {
-    const customer = savedCustomers[i];
+  for (let i = 0; i < customers.length; i++) {
+    const customer = customers[i];
     const persona = personaList[i];
     const orderSpecs = buildOrdersForPersona(customer._id, persona);
 
@@ -267,7 +268,8 @@ export async function seedDatabase(clearExisting: boolean = true) {
     }
   }
 
-  await Order.insertMany(allOrders);
+  // Use lean and ordered:false to significantly speed up large inserts
+  await Order.insertMany(allOrders, { lean: true, ordered: false });
 
   console.log("🧠 Building customer profiles...");
   const rebuiltCount = await buildAllProfiles();
@@ -276,7 +278,7 @@ export async function seedDatabase(clearExisting: boolean = true) {
   const highChurn = await CustomerProfile.countDocuments({ churnRisk: "high" });
 
   return {
-    customers: savedCustomers.length,
+    customers: customers.length,
     orders: totalOrderCount,
     profiles: rebuiltCount,
     vipCustomers: vipCount,

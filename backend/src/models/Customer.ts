@@ -20,4 +20,6 @@ const CustomerSchema = new Schema<ICustomer>(
   { timestamps: false }
 );
 
+CustomerSchema.index({ createdAt: -1 });
+
 export default mongoose.model<ICustomer>("Customer", CustomerSchema);

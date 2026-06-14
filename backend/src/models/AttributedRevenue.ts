@@ -33,6 +33,8 @@ const AttributedRevenueSchema = new Schema<IAttributedRevenue>(
   { timestamps: false }
 );
 
+AttributedRevenueSchema.index({ campaignId: 1 });
+
 export default mongoose.model<IAttributedRevenue>(
   "AttributedRevenue",
   AttributedRevenueSchema
