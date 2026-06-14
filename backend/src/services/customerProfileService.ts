@@ -8,10 +8,17 @@ export async function buildAllProfiles(): Promise<number> {
   const customers = await Customer.find({});
   console.log(`Building profiles for ${customers.length} customers...`);
 
-  for (const customer of customers) {
-    await buildProfileForCustomer(customer._id.toString());
-  }
+  const batchSize = 25;
 
+  for (let i = 0; i < customers.length; i += batchSize) {
+    const batch = customers.slice(i, i + batchSize);
+
+    await Promise.all(
+      batch.map(customer =>
+        buildProfileForCustomer(customer._id.toString())
+      )
+    );
+  }
   // Cleanup orphaned profiles
   const activeCustomerIds = customers.map(c => c._id.toString());
   const cleanupResult = await CustomerProfile.deleteMany({
