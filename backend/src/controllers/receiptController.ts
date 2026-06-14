@@ -14,6 +14,7 @@ export async function handleReceipt(req: Request, res: Response) {
     }
 
     // Save receipt for audit trail
+    console.log(`[CRM Receipt API] Received async callback from Channel Service for comm ${communicationId} -> ${status}`);
     await Receipt.create({ campaignId, customerId, status });
 
     // BUG FIX: Status transitions must only go FORWARD.

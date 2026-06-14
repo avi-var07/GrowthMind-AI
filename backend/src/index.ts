@@ -31,9 +31,30 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
+import axios from "axios";
+
+// Check Channel Service
+let channelServiceStatus = "unknown";
+async function checkChannelService() {
+  const url = process.env.CHANNEL_SERVICE_URL || "http://localhost:6000";
+  try {
+    await axios.get(`${url}/health`, { timeout: 2000 });
+    channelServiceStatus = "online";
+  } catch (err) {
+    channelServiceStatus = "offline";
+    console.warn(`[WARNING] Channel Service is OFFLINE at ${url}. Campaigns will fail to send!`);
+  }
+}
+
 // Health check
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", service: "GrowthMind AI Backend", port: PORT });
+app.get("/health", async (req, res) => {
+  await checkChannelService();
+  res.json({
+    status: "ok",
+    service: "GrowthMind AI Backend",
+    port: PORT,
+    channelService: channelServiceStatus
+  });
 });
 
 // API Routes
@@ -54,9 +75,14 @@ app.use((req, res) => {
 // Start server
 async function start() {
   await connectDatabase();
+  await checkChannelService();
+  
   app.listen(PORT, () => {
     console.log(`🚀 GrowthMind AI Backend running on port ${PORT}`);
     console.log(`   Health: http://localhost:${PORT}/health`);
+    if (channelServiceStatus === "offline") {
+      console.log(`⚠️  WARNING: Channel Service is OFFLINE. Run 'npm run dev' in channel-service.`);
+    }
   });
 
   // Start background reconciliation job

@@ -158,6 +158,16 @@ export async function sendCampaign(req: Request, res: Response) {
       sentAt: new Date(),
     });
 
+    // Prevent silent failures: Check if Channel Service is actually available
+    const { checkChannelServiceHealth } = require("../services/channelService");
+    const isChannelServiceOnline = await checkChannelServiceHealth();
+    
+    if (!isChannelServiceOnline) {
+      // Revert campaign to draft so user can try again
+      await Campaign.findByIdAndUpdate(campaign._id, { status: "draft", sentAt: null });
+      return res.status(503).json({ error: "Channel Service is currently unavailable. Campaign saved as draft." });
+    }
+
     // Create communication logs for each customer
     // Alternate between whatsapp and email channels
     const communications = [];
